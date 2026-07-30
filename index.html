@@ -6,9 +6,13 @@
   <title>BEM FTEIC Document Tools</title>
   <link rel="stylesheet" href="styles.css">
 
-  <!-- Valid browser builds. No Python/Flask required. -->
-  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <!-- Versi library dikunci dan diverifikasi dengan Subresource Integrity. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"
+    integrity="sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"
+    integrity="sha512-z8IYLHO8bTgFqj+yrPyIJnzBDf7DDhWwiEsk4sY+Oe6J2M+WQequeGS7qioI5vT6rXgVRb4K1UVQC5ER7MKzKQ=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="vendor/jszip.min.js"></script>
 </head>
 <body>
@@ -20,14 +24,18 @@
       </div>
       <button class="nav active" data-panel="qr">▦ Bulk QR Code</button>
       <button class="nav" data-panel="split">✂ PDF Splitter</button>
-      <div class="note">Buka langsung melalui <b>index.html</b>. Tidak memakai Python.</div>
+      <button class="nav" data-panel="drive">⧉ Drive Duplicator + QR</button>
+      <div class="note">
+        Versi aman ini dijalankan melalui <b>Vercel</b>. Token Google disimpan dalam cookie terenkripsi
+        dan operasi Drive dilakukan oleh backend, bukan JavaScript browser.
+      </div>
     </aside>
 
     <main>
       <header>
         <div>
           <h1>Document Finalizer</h1>
-          <p>Generate banyak QR berlogo dan pecah satu PDF menjadi banyak file bernama custom.</p>
+          <p>Generate QR, pecah PDF, serta copy dan rename file Google Drive per departemen.</p>
         </div>
         <span class="badge">BEM FTEIC</span>
       </header>
@@ -109,6 +117,74 @@
           <button id="splitPdf" class="btn primary">Split & Download Semua PDF</button>
           <div id="splitStatus" class="status"></div>
         </div>
+      </section>
+
+      <section id="panel-drive" class="panel">
+        <span class="eyebrow">FITUR 03</span>
+        <h2>Drive Duplicator + QR</h2>
+        <p class="lead">
+          Copy file sumber, rename hasilnya, masukkan ke folder departemen yang dipilih,
+          lalu buat QR dari link file baru secara otomatis.
+        </p>
+
+        <div class="card auth-card">
+          <div>
+            <span class="account-label">AKUN GOOGLE DRIVE</span>
+            <strong id="driveAccountName">Belum terhubung</strong>
+            <span id="driveAccountEmail">Memeriksa sesi login yang aman...</span>
+          </div>
+          <div class="auth-actions">
+            <button id="googleLogin" class="btn google-btn">Masuk dengan Google</button>
+            <button id="googleLogout" class="btn ghost hidden">Putuskan akun</button>
+          </div>
+          <div id="driveAuthStatus" class="status full-row"></div>
+        </div>
+
+        <div class="card">
+          <div class="example">
+            <b>Alur otomatis:</b> link file sumber → copy → rename → masuk folder tujuan → link file baru → QR PNG.
+            File sumber tidak dipindahkan atau diubah.
+          </div>
+
+          <div class="toolbar">
+            <button id="addDriveRow" class="btn secondary">+ Tambah Baris</button>
+            <button id="pasteDrive" class="btn ghost">Paste Banyak</button>
+            <button id="clearDrive" class="btn ghost danger">Hapus Semua</button>
+          </div>
+
+          <div class="table-head drive-head">
+            <span>Link file sumber</span>
+            <span>Nama file output</span>
+            <span>Link folder tujuan</span>
+            <span></span>
+          </div>
+          <div id="driveRows"></div>
+
+          <div class="settings">
+            <div>
+              <label>Ukuran QR hasil</label>
+              <select id="driveQrSize">
+                <option value="800">800 × 800 px</option>
+                <option value="1200" selected>1200 × 1200 px</option>
+                <option value="1600">1600 × 1600 px</option>
+              </select>
+            </div>
+            <div>
+              <label>Ukuran logo QR</label>
+              <select id="driveLogoSize">
+                <option value="0.16">Kecil</option>
+                <option value="0.20" selected>Sedang</option>
+                <option value="0.24">Besar</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="duplicateDrive" class="btn primary">Duplicate File & Generate QR</button>
+          <div id="driveStatus" class="status"></div>
+        </div>
+
+        <div id="driveResults" class="drive-results"></div>
+        <button id="downloadDriveQrZip" class="btn primary hidden">Download Semua QR Hasil (.zip)</button>
       </section>
     </main>
   </div>

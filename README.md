@@ -1,33 +1,47 @@
-# BEM FTEIC Document Tools v4
+# BEM FTEIC Document Tools v6 — Secure Vercel Edition
 
-## Cara menjalankan
+Fitur:
 
-1. Extract ZIP.
-2. Buka folder hasil extract.
-3. Double-click `index.html`.
-4. Tidak perlu Python, Flask, CMD, atau `start.bat`.
+1. **Bulk QR Code** — generate QR berlogo dari banyak link.
+2. **PDF Splitter** — pecah satu PDF menjadi banyak file dengan nama custom.
+3. **Drive Duplicator + QR** — copy file Drive, rename, taruh ke folder tujuan, tampilkan link baru, dan generate QR otomatis.
 
-Koneksi internet diperlukan agar library QR dan PDF dimuat ketika aplikasi dibuka. Logo dan seluruh dokumen tetap diproses di browser; file tidak diunggah ke server aplikasi.
+## Perubahan keamanan v6
 
-## Bulk QR
+Versi v5 menyimpan OAuth access token di browser dan mengecek email lewat JavaScript frontend. Pemeriksaan seperti itu dapat dimodifikasi oleh pengguna.
 
-Bisa tambah link satu per satu atau pilih **Paste Banyak**:
+Versi v6 memakai **OAuth Authorization Code Flow di backend Vercel**:
 
-```text
-001_SPP_DAGRI | https://drive.google.com/file/d/...
-002_SPP_DAGRI | https://drive.google.com/file/d/...
+- Client secret hanya disimpan di Vercel Environment Variables.
+- Google ID token diverifikasi dengan public key Google.
+- Email kembali diperiksa di setiap API request.
+- Access token dan refresh token berada di cookie HttpOnly yang terenkripsi AES-256-GCM.
+- Browser tidak menerima token Google.
+- Endpoint copy Drive memeriksa session, email, origin, file sumber, dan izin folder tujuan.
+- OAuth memakai `state`, `nonce`, dan PKCE.
+
+JavaScript frontend dapat dilihat atau diubah, tetapi operasi Drive tetap ditolak oleh backend apabila session bukan milik akun yang diizinkan.
+
+## Environment Variables
+
+```env
+APP_URL=https://nama-project.vercel.app
+GOOGLE_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=xxxxxxxx
+ALLOWED_GOOGLE_EMAIL=bemfteicits2603@gmail.com
+SESSION_SECRET=random-secret-minimal-32-karakter
 ```
 
-Hasil dapat di-download satu per satu atau sekaligus sebagai ZIP.
+Jangan commit `.env` atau nilai secret ke GitHub.
 
-## PDF Splitter
-
-Upload satu PDF sumber. Contoh:
+## Google OAuth redirect URI
 
 ```text
-1   | 001_SPP_DAGRI
-2   | 002_SPP_DAGRI
-3-4 | 003_SPP_DAGRI
+https://nama-project.vercel.app/api/auth/callback
 ```
 
-Klik **Split & Download Semua PDF**. Hasilnya ZIP berisi PDF terpisah dengan nama custom dan `MANIFEST.txt`.
+Harus sama persis dengan `APP_URL` yang dipasang di Vercel.
+
+## Deploy
+
+Baca [DEPLOYMENT.md](DEPLOYMENT.md).
