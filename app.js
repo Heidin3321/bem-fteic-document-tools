@@ -47,6 +47,88 @@ function safeName(value, fallback = "file") {
     .trim() || fallback;
 }
 
+function normalizeNamePart(value, label) {
+  const cleaned = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_")
+    .replace(/[^A-Z0-9_-]/g, "");
+
+  if (!cleaned) throw new Error(`${label} wajib diisi.`);
+  return cleaned;
+}
+
+function readNumberRange(startValue, endValue, label = "Nomor surat") {
+  const startRaw = String(startValue || "").trim();
+  const endRaw = String(endValue || "").trim();
+
+  if (!/^\d+$/.test(startRaw) || !/^\d+$/.test(endRaw)) {
+    throw new Error(`${label} awal dan akhir harus berupa angka.`);
+  }
+
+  const start = Number(startRaw);
+  const end = Number(endRaw);
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end) {
+    throw new Error(`${label} tidak valid. Nomor akhir harus sama atau lebih besar dari nomor awal.`);
+  }
+
+  const count = end - start + 1;
+  if (count > 250) {
+    throw new Error(`Maksimal 250 output dalam sekali generate. Range saat ini menghasilkan ${count} output.`);
+  }
+
+  return {
+    start,
+    end,
+    count,
+    width: Math.max(startRaw.length, endRaw.length)
+  };
+}
+
+function formatSequenceNumber(number, width) {
+  return String(number).padStart(width, "0");
+}
+
+function buildDocumentName(numberText, letterType, department) {
+  return `${numberText}_${normalizeNamePart(letterType, "Jenis surat")}_${normalizeNamePart(department, "Sumber / departemen")}`;
+}
+
+function parseCustomPageExpressions(value) {
+  return String(value || "")
+    .split(/(?:;|\r?\n)+/)
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function validatePageExpressionSyntax(expression, label = "Format halaman") {
+  const value = String(expression || "").trim();
+  if (!value) throw new Error(`${label} kosong.`);
+
+  for (const rawPart of value.split(",")) {
+    const part = rawPart.trim();
+    if (/^\d+$/.test(part)) continue;
+    const rangeMatch = part.match(/^(\d+)-(\d+)$/);
+    if (rangeMatch && Number(rangeMatch[1]) <= Number(rangeMatch[2])) continue;
+    throw new Error(`${label} tidak valid: ${part || value}`);
+  }
+  return value;
+}
+
+function withFixedPages(baseExpression, fixedPages) {
+  const extra = String(fixedPages || "").trim().replace(/^,+|,+$/g, "");
+  if (extra) validatePageExpressionSyntax(extra, "Halaman tambahan tetap");
+  return extra ? `${baseExpression},${extra}` : baseExpression;
+}
+
+function driveRowsAreBlank() {
+  const rows = [...document.querySelectorAll(".drive-row")];
+  return rows.length === 0 || rows.every(row =>
+    !row.querySelector(".drive-source").value.trim() &&
+    !row.querySelector(".drive-name").value.trim() &&
+    !row.querySelector(".drive-folder").value.trim()
+  );
+}
+
 function validateUrl(value, label) {
   try {
     const url = new URL(value);
@@ -297,6 +379,85 @@ $("addOutput").onclick = () => addOutputRow();
 $("clearOutputs").onclick = () => {
   $("outputRows").innerHTML = "";
   addOutputRow();
+};
+
+function updateSplitGeneratorMode() {
+  const custom = $("splitPageMode").value === "custom";
+  $("splitCustomPagesWrap").classList.toggle("hidden", !custom);
+  $("splitStartPageWrap").classList.toggle("hidden", custom);
+  $("splitFixedPagesWrap").classList.toggle("hidden", custom);
+  updateSplitBulkPreview();
+}
+
+function getSplitBulkPlan() {
+  const range = readNumberRange($("splitStartNumber").value, $("splitEndNumber").value);
+  const letterType = normalizeNamePart($("splitLetterType").value, "Jenis surat");
+  const department = normalizeNamePart($("splitDepartment").value, "Sumber / departemen");
+  const names = Array.from({ length: range.count }, (_, index) => {
+    const numberText = formatSequenceNumber(range.start + index, range.width);
+    return buildDocumentName(numberText, letterType, department);
+  });
+
+  let pages = [];
+  const mode = $("splitPageMode").value;
+
+  if (mode === "custom") {
+    pages = parseCustomPageExpressions($("splitCustomPages").value);
+    pages.forEach((expression, index) => validatePageExpressionSyntax(expression, `Pola custom ${index + 1}`));
+    if (pages.length !== range.count) {
+      throw new Error(`Range nomor menghasilkan ${range.count} surat, tetapi daftar halaman custom berisi ${pages.length} pola.`);
+    }
+  } else {
+    const pagesPerOutput = Number(mode);
+    const startPage = Number($("splitStartPage").value);
+    if (!Number.isInteger(startPage) || startPage < 1) throw new Error("Halaman awal harus angka minimal 1.");
+    const fixedPages = $("splitFixedPages").value.trim();
+
+    pages = Array.from({ length: range.count }, (_, index) => {
+      const first = startPage + index * pagesPerOutput;
+      const last = first + pagesPerOutput - 1;
+      const base = pagesPerOutput === 1 ? String(first) : `${first}-${last}`;
+      return withFixedPages(base, fixedPages);
+    });
+  }
+
+  return { range, names, pages, letterType, department };
+}
+
+function updateSplitBulkPreview() {
+  const preview = $("splitBulkPreview");
+  try {
+    const plan = getSplitBulkPlan();
+    const first = `${plan.pages[0]} → ${plan.names[0]}`;
+    const last = plan.range.count > 1 ? `${plan.pages.at(-1)} → ${plan.names.at(-1)}` : "";
+    preview.innerHTML = `<b>${plan.range.count} output</b> akan dibuat. <span>${esc(first)}${last ? ` &nbsp;…&nbsp; ${esc(last)}` : ""}</span>`;
+    preview.classList.remove("preview-error");
+  } catch (error) {
+    preview.textContent = error.message;
+    preview.classList.add("preview-error");
+  }
+}
+
+$("splitPageMode").onchange = updateSplitGeneratorMode;
+[
+  "splitStartNumber", "splitEndNumber", "splitLetterType", "splitDepartment",
+  "splitStartPage", "splitFixedPages", "splitCustomPages"
+].forEach(id => $(id).addEventListener("input", updateSplitBulkPreview));
+
+$("generateSplitBulk").onclick = () => {
+  try {
+    const plan = getSplitBulkPlan();
+    $("outputRows").innerHTML = "";
+    plan.pages.forEach((pages, index) => addOutputRow(pages, plan.names[index]));
+    status(
+      "splitBulkStatus",
+      `${plan.range.count} baris berhasil dibuat: ${plan.names[0]} sampai ${plan.names.at(-1)}.`,
+      "success"
+    );
+    status("splitStatus", "");
+  } catch (error) {
+    status("splitBulkStatus", error.message, "error");
+  }
 };
 
 $("sourcePdf").onchange = async () => {
@@ -594,6 +755,68 @@ $("clearDrive").onclick = () => {
   addDriveRow();
 };
 
+function getDriveBulkPlan() {
+  const sourceLink = $("driveBulkSource").value.trim();
+  const folderLink = $("driveBulkFolder").value.trim();
+  if (!sourceLink) throw new Error("Link file sumber wajib diisi.");
+  if (!folderLink) throw new Error("Link folder tujuan wajib diisi.");
+
+  extractDriveId(sourceLink, "Link file sumber");
+  extractDriveId(folderLink, "Link folder tujuan");
+
+  const range = readNumberRange($("driveStartNumber").value, $("driveEndNumber").value);
+  const letterType = normalizeNamePart($("driveLetterType").value, "Jenis surat");
+  const department = normalizeNamePart($("driveDepartment").value, "Departemen / sumber");
+
+  const items = Array.from({ length: range.count }, (_, index) => {
+    const numberText = formatSequenceNumber(range.start + index, range.width);
+    return {
+      sourceLink,
+      folderLink,
+      outputName: buildDocumentName(numberText, letterType, department)
+    };
+  });
+
+  return { range, items, letterType, department };
+}
+
+function updateDriveBulkPreview() {
+  const preview = $("driveBulkPreview");
+  try {
+    const plan = getDriveBulkPlan();
+    preview.innerHTML = `<b>${plan.range.count} baris</b> akan ditambahkan: <span>${esc(plan.items[0].outputName)}${plan.range.count > 1 ? ` &nbsp;…&nbsp; ${esc(plan.items.at(-1).outputName)}` : ""}</span>`;
+    preview.classList.remove("preview-error");
+  } catch (error) {
+    preview.textContent = error.message;
+    preview.classList.add("preview-error");
+  }
+}
+
+[
+  "driveBulkSource", "driveBulkFolder", "driveStartNumber", "driveEndNumber",
+  "driveLetterType", "driveDepartment"
+].forEach(id => $(id).addEventListener("input", updateDriveBulkPreview));
+
+$("generateDriveBulk").onclick = () => {
+  try {
+    const plan = getDriveBulkPlan();
+
+    // Baris kosong bawaan dibuang, tetapi batch yang sudah dibuat tetap dipertahankan.
+    // Dengan begitu pengguna bisa generate DAGRI lalu PSDM tanpa menulis ulang tiap baris.
+    if (driveRowsAreBlank()) $("driveRows").innerHTML = "";
+    plan.items.forEach(item => addDriveRow(item.sourceLink, item.outputName, item.folderLink));
+
+    status(
+      "driveBulkStatus",
+      `${plan.range.count} baris ${plan.department} ditambahkan. Total daftar sekarang ${readDriveRows().length} file.`,
+      "success"
+    );
+    status("driveStatus", "");
+  } catch (error) {
+    status("driveBulkStatus", error.message, "error");
+  }
+};
+
 $("duplicateDrive").onclick = async () => {
   const button = $("duplicateDrive");
 
@@ -749,5 +972,7 @@ addQrRow();
 addQrRow();
 addOutputRow("1", "001_SPP_DAGRI");
 addDriveRow();
+updateSplitGeneratorMode();
+updateDriveBulkPreview();
 updateDriveAuthUi();
 loadDriveSession();

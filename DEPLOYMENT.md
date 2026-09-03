@@ -128,3 +128,7 @@ Hasil benar:
 ## Catatan mode Testing Google
 
 Pada OAuth consent screen berstatus **Testing**, hanya test user yang dapat login dan otorisasi test user dapat kedaluwarsa setelah tujuh hari. Gunakan Testing untuk setup awal. Untuk pemakaian jangka panjang, pertimbangkan memindahkan aplikasi ke **In production** dan mengikuti persyaratan verifikasi Google untuk scope Drive penuh.
+
+## Update dari v6 ke v7
+
+Tidak ada Environment Variable atau OAuth scope baru untuk v7. Jika v6 sudah berhasil login dan copy Google Drive, cukup deploy source v7 ke project Vercel yang sama. `APP_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_GOOGLE_EMAIL`, dan `SESSION_SECRET` tetap menggunakan nilai yang sama.
